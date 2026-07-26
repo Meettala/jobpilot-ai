@@ -42,5 +42,9 @@ jobs:
     with:
       scan-args: |-
         --lockfile=package-lock.json
-      fail-on-vuln: true
       upload-sarif: false
+      fail-on-vuln: true
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
