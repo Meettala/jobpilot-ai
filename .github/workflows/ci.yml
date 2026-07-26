@@ -28,8 +28,25 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
-      - name: Lint
-        run: npm run lint
+      - name: Capture ESLint diagnostics
+        run: |
+          set +e
+          npm run lint -- --format json > eslint-report.json 2>&1
+          status=$?
+          echo "$status" > eslint-status.txt
+          exit 0
+
+      - name: Upload ESLint diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-diagnostics
+          path: |
+            eslint-report.json
+            eslint-status.txt
+          retention-days: 3
+
+      - name: Enforce ESLint
+        run: test "$(cat eslint-status.txt)" -eq 0
 
       - name: Run tests
         run: npm test
