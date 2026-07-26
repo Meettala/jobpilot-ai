@@ -17,7 +17,6 @@ export type JobRequirements = {
 const PREFERRED_MARKERS = ["preferred", "nice to have", "bonus", "a plus", "desirable"];
 
 export function extractJobRequirements(jdText: string, hints?: { jobTitle?: string; company?: string; location?: string }): JobRequirements {
-  const lower = jdText.toLowerCase();
   const sentences = jdText.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
 
   const required = new Set<string>();
