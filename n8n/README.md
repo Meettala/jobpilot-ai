@@ -1,26 +1,42 @@
 # Importing the follow-up workflow into n8n
 
-This workflow demonstrates automated *proposing*, never automated
-*acting* — it mirrors the in-app suggestion logic exactly and writes
-only to the pending approval queue.
+This workflow demonstrates automated **proposing**, never automated acting. It mirrors the in-app suggestion logic and writes only to the pending approval queue.
 
-## What it does
-1. Runs once a day (Schedule Trigger).
-2. Calls `GET /api/jobs/needs-follow-up` on your deployed JobPilot AI
-   instance — a read-only endpoint.
-3. For each suggestion returned, calls `POST /api/approval-queue` —
-   which only ever creates a `pending` item.
-4. Stops. Nothing is sent. You approve or reject each item yourself on
-   the app's `/jobs` page.
+## Demo behaviour
 
-## Import steps (you'll need an n8n account — n8n Cloud or self-hosted)
-1. In n8n: **Workflows → Import from File** → select `follow-up-workflow.json`.
-2. Set the `JOBPILOT_APP_URL` environment variable in n8n to your
-   deployed JobPilot AI URL (e.g. `https://jobpilot-ai.vercel.app`).
-3. Activate the workflow.
+1. Runs once a day using a Schedule Trigger.
+2. Calls `GET /api/jobs/needs-follow-up` on the deployed JobPilot AI instance.
+3. Splits the returned suggestions.
+4. Calls `POST /api/approval-queue` for each suggestion.
+5. Stops. Nothing is sent and no application state changes automatically.
 
-## What this workflow deliberately cannot do
-No node in this workflow has email, Slack, LinkedIn, or any
-messaging-service credentials — there's nothing to configure for sending,
-because sending isn't part of what this workflow does. That's enforced
-by what nodes exist in the file, not just by instruction.
+A user must open `/jobs` and explicitly approve or reject every pending item.
+
+## Import steps for a local or isolated demo
+
+1. In n8n, choose **Workflows → Import from File**.
+2. Select `follow-up-workflow.json`.
+3. Set `JOBPILOT_APP_URL` to an HTTPS JobPilot deployment URL.
+4. Keep the workflow inactive until the endpoint protections below are implemented.
+
+## Production security requirements
+
+The repository workflow is an architectural example, not a production-secure integration. Before enabling it against real user data:
+
+- Require a server-side automation secret or signed request on both endpoints.
+- Store the secret in n8n credentials or environment variables, never in the workflow JSON.
+- Add authentication headers through n8n’s credential system.
+- Enforce HTTPS and reject unexpected hosts.
+- Add rate limiting, request IDs and audit logging.
+- Prevent duplicate workflow runs from creating repeated actions.
+- Rotate credentials and document revocation procedures.
+- Scope the endpoint to the authenticated user or service identity.
+- Test that pending items cannot bypass the explicit approval route.
+
+The current public demo does not yet implement these production controls, so the workflow should remain disabled outside an isolated demonstration.
+
+## Deliberately excluded capabilities
+
+No node in the workflow has email, Slack, LinkedIn, job-board, browser-automation or application-submission credentials. There is no sending node and no path that approves an item automatically.
+
+Adding any external communication or application action would require a separate private, governed production design with human review, platform-policy checks and auditable consent.
