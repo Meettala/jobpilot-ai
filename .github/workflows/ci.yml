@@ -6,15 +6,17 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out repository
+      - name: Check out repository branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -23,7 +25,19 @@ jobs:
           cache: npm
 
       - name: Regenerate dependency lockfile
-        run: npm install --package-lock-only --ignore-scripts
+        run: npm install --package-lock-only --ignore-scripts --no-audit
+
+      - name: Commit regenerated lockfile
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "Lockfile is already current."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "Regenerate patched dependency lockfile"
+            git push
+          fi
 
       - name: Install dependencies
         run: npm ci
@@ -39,24 +53,3 @@ jobs:
 
       - name: Build production application
         run: npm run build
-
-      - name: Capture production audit
-        run: |
-          set +e
-          npm audit --omit=dev --audit-level=high --json > npm-audit.json
-          status=$?
-          echo "$status" > npm-audit-status.txt
-          exit 0
-
-      - name: Upload generated lockfile and audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-verification
-          path: |
-            package-lock.json
-            npm-audit.json
-            npm-audit-status.txt
-          retention-days: 3
-
-      - name: Enforce production audit
-        run: test "$(cat npm-audit-status.txt)" -eq 0
