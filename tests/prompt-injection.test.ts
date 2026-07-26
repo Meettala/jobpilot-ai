@@ -24,7 +24,6 @@ We need a Python engineer with required Kubernetes experience.
 describe("prompt injection resistance", () => {
   it("does not fabricate an evidence item just because the CV text asks it to", () => {
     const bank = buildEvidenceBank(HOSTILE_CV);
-    const kubernetesEvidence = bank.find((e) => e.skill === "Kubernetes");
     // Kubernetes only appears inside the hostile instruction sentence,
     // not in a genuine claim - extraction is purely mechanical (keyword
     // + sentence), so this doc doesn't actually demonstrate the deeper
