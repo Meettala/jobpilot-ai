@@ -16,15 +16,21 @@ export type JobRequirements = {
 
 const PREFERRED_MARKERS = ["preferred", "nice to have", "bonus", "a plus", "desirable"];
 
-export function extractJobRequirements(jdText: string, hints?: { jobTitle?: string; company?: string; location?: string }): JobRequirements {
-  const sentences = jdText.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+export function extractJobRequirements(
+  jdText: string,
+  hints?: { jobTitle?: string; company?: string; location?: string },
+): JobRequirements {
+  const sentences = jdText
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
 
   const required = new Set<string>();
   const preferred = new Set<string>();
 
   for (const sentence of sentences) {
-    const sLower = sentence.toLowerCase();
-    const isPreferredContext = PREFERRED_MARKERS.some((m) => sLower.includes(m));
+    const lower = sentence.toLowerCase();
+    const isPreferredContext = PREFERRED_MARKERS.some((marker) => lower.includes(marker));
     const mentions = findSkillMentions(sentence);
     for (const { skill } of mentions) {
       if (isPreferredContext) preferred.add(skill);
@@ -32,7 +38,6 @@ export function extractJobRequirements(jdText: string, hints?: { jobTitle?: stri
     }
   }
 
-  // A skill mentioned in both contexts counts as required (the stronger claim).
   for (const skill of required) preferred.delete(skill);
 
   return {
@@ -45,13 +50,17 @@ export function extractJobRequirements(jdText: string, hints?: { jobTitle?: stri
 }
 
 function guessTitle(jdText: string): string {
-  const lines = jdText.split("\n").map((l) => l.trim()).filter(Boolean);
-  // Prefer a short line containing a common role-title keyword.
+  const segments = jdText
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((segment) => segment.trim().replace(/[.!?]+$/, ""))
+    .filter(Boolean);
   const titleKeywords = ["engineer", "scientist", "developer", "analyst", "manager", "designer"];
-  const candidate = lines.find(
-    (l) => l.length < 60 && titleKeywords.some((k) => l.toLowerCase().includes(k))
+  const candidate = segments.find(
+    (segment) =>
+      segment.length <= 80 &&
+      titleKeywords.some((keyword) => segment.toLowerCase().includes(keyword)),
   );
   if (candidate) return candidate;
-  const firstShortLine = lines.find((l) => l.length > 0 && l.length < 60);
-  return firstShortLine ?? "Untitled role";
+  const firstShortSegment = segments.find((segment) => segment.length <= 80);
+  return firstShortSegment ?? "Untitled role";
 }
