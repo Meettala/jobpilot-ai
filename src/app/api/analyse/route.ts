@@ -1,23 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAnalysis } from "@/lib/analyze";
 import { exportAsMarkdown } from "@/lib/export/markdown";
+import { hasOnlyKeys, readBoundedString, readJsonObject } from "@/lib/http/request-validation";
+
+const MAX_INPUT_CHARS = 50_000;
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { cvText, jdText } = body as { cvText?: string; jdText?: string };
-
-  if (!cvText || typeof cvText !== "string") {
-    return NextResponse.json({ error: "cvText is required" }, { status: 400 });
-  }
-  if (!jdText || typeof jdText !== "string") {
-    return NextResponse.json({ error: "jdText is required" }, { status: 400 });
-  }
-  if (cvText.length > 50_000 || jdText.length > 50_000) {
-    return NextResponse.json({ error: "Input too large (max 50,000 chars each)" }, { status: 413 });
+  const body = await readJsonObject(req);
+  if (!body || !hasOnlyKeys(body, ["cvText", "jdText"])) {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const result = await runAnalysis(cvText, jdText);
-  const markdown = exportAsMarkdown(result);
+  const cvText = readBoundedString(body.cvText, { max: MAX_INPUT_CHARS });
+  const jdText = readBoundedString(body.jdText, { max: MAX_INPUT_CHARS });
 
-  return NextResponse.json({ ...result, markdown });
+  if (!cvText || !jdText) {
+    return NextResponse.json(
+      { error: "cvText and jdText must be non-empty strings up to 50,000 characters" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const result = await runAnalysis(cvText, jdText);
+    const markdown = exportAsMarkdown(result);
+    return NextResponse.json({ ...result, markdown });
+  } catch {
+    return NextResponse.json({ error: "Analysis could not be completed" }, { status: 500 });
+  }
 }
