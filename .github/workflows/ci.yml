@@ -32,25 +32,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Capture test diagnostics
-        run: |
-          set +e
-          npm test -- --reporter=json --outputFile=test-report.json
-          status=$?
-          echo "$status" > test-status.txt
-          exit 0
-
-      - name: Upload test diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: vitest-diagnostics
-          path: |
-            test-report.json
-            test-status.txt
-          retention-days: 3
-
-      - name: Enforce tests
-        run: test "$(cat test-status.txt)" -eq 0
+      - name: Run tests
+        run: npm test
 
       - name: Build production application
         run: npm run build
