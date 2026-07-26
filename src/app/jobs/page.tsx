@@ -26,44 +26,99 @@ type QueueItem = {
   status: string;
 };
 
+type TrackerData = {
+  jobs: Job[];
+  suggestions: Suggestion[];
+  queue: QueueItem[];
+};
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) throw new Error("Tracker data could not be loaded");
+  return response.json() as Promise<T>;
+}
+
+async function loadTrackerData(): Promise<TrackerData> {
+  const [jobsRes, suggestionsRes, queueRes] = await Promise.all([
+    fetchJson<{ jobs: Job[] }>("/api/jobs"),
+    fetchJson<{ suggestions: Suggestion[] }>("/api/jobs/needs-follow-up"),
+    fetchJson<{ items: QueueItem[] }>("/api/approval-queue"),
+  ]);
+
+  return {
+    jobs: jobsRes.jobs,
+    suggestions: suggestionsRes.suggestions,
+    queue: queueRes.items,
+  };
+}
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
-    const [jobsRes, suggRes, queueRes] = await Promise.all([
-      fetch("/api/jobs").then((r) => r.json()),
-      fetch("/api/jobs/needs-follow-up").then((r) => r.json()),
-      fetch("/api/approval-queue").then((r) => r.json()),
-    ]);
-    setJobs(jobsRes.jobs);
-    setSuggestions(suggRes.suggestions);
-    setQueue(queueRes.items);
+  const applyTrackerData = useCallback((data: TrackerData) => {
+    setJobs(data.jobs);
+    setSuggestions(data.suggestions);
+    setQueue(data.queue);
+    setError("");
     setLoading(false);
   }, []);
 
+  const refresh = useCallback(async () => {
+    try {
+      applyTrackerData(await loadTrackerData());
+    } catch {
+      setError("The tracker could not be refreshed. Please try again.");
+      setLoading(false);
+    }
+  }, [applyTrackerData]);
+
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let active = true;
+
+    void loadTrackerData()
+      .then((data) => {
+        if (active) applyTrackerData(data);
+      })
+      .catch(() => {
+        if (active) {
+          setError("The tracker could not be loaded. Please try again.");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [applyTrackerData]);
 
   async function proposeAction(s: Suggestion) {
-    await fetch("/api/approval-queue", {
+    const response = await fetch("/api/approval-queue", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jobId: s.jobId, actionType: s.actionType, proposedContent: s.proposedContent }),
     });
-    refresh();
+    if (!response.ok) {
+      setError("The suggested action could not be added to the approval queue.");
+      return;
+    }
+    await refresh();
   }
 
   async function resolve(id: string, decision: "approved" | "rejected") {
-    await fetch("/api/approval-queue", {
+    const response = await fetch("/api/approval-queue", {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ id, decision }),
     });
-    refresh();
+    if (!response.ok) {
+      setError("The approval decision could not be saved.");
+      return;
+    }
+    await refresh();
   }
 
   if (loading) return <div className="p-16 text-center">Loading...</div>;
@@ -78,6 +133,12 @@ export default function JobsPage() {
         Suggested actions require your approval — nothing is sent or changed automatically.
       </p>
 
+      {error && (
+        <div role="alert" className="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
+
       {suggestions.length > 0 && (
         <section className="mt-10">
           <h2 className="text-lg font-bold text-amber-700">New suggestions</h2>
@@ -89,7 +150,7 @@ export default function JobsPage() {
                   <p className="text-sm font-semibold">{jobById(s.jobId)?.jobTitle} at {jobById(s.jobId)?.company}</p>
                   <p className="mt-1 text-xs text-gray-600">{s.reason}</p>
                   <p className="mt-2 text-sm italic">&quot;{s.proposedContent}&quot;</p>
-                  <button onClick={() => proposeAction(s)} className="mt-3 rounded bg-black px-4 py-1.5 text-xs text-white">
+                  <button onClick={() => void proposeAction(s)} className="mt-3 rounded bg-black px-4 py-1.5 text-xs text-white">
                     Add to approval queue
                   </button>
                 </div>
@@ -107,8 +168,8 @@ export default function JobsPage() {
                 <p className="text-sm font-semibold">{jobById(q.jobId)?.jobTitle} — {q.actionType}</p>
                 <p className="mt-2 text-sm italic">&quot;{q.proposedContent}&quot;</p>
                 <div className="mt-3 flex gap-2">
-                  <button onClick={() => resolve(q.id, "approved")} className="rounded bg-green-700 px-4 py-1.5 text-xs text-white">Approve</button>
-                  <button onClick={() => resolve(q.id, "rejected")} className="rounded bg-gray-300 px-4 py-1.5 text-xs">Reject</button>
+                  <button onClick={() => void resolve(q.id, "approved")} className="rounded bg-green-700 px-4 py-1.5 text-xs text-white">Approve</button>
+                  <button onClick={() => void resolve(q.id, "rejected")} className="rounded bg-gray-300 px-4 py-1.5 text-xs">Reject</button>
                 </div>
               </div>
             ))}

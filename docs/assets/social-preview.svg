@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">JobPilot AI social preview</title>
+  <desc id="desc">Evidence-grounded job application assistant with truthful drafting and approval-gated automation.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="1080" cy="110" r="220" fill="#38bdf8" opacity="0.08"/>
+  <circle cx="1160" cy="560" r="260" fill="#a78bfa" opacity="0.08"/>
+  <rect x="90" y="92" width="1100" height="456" rx="34" fill="#0b1220" stroke="#334155" stroke-width="2"/>
+  <rect x="132" y="140" width="12" height="72" rx="6" fill="url(#accent)"/>
+  <text x="174" y="188" fill="#f8fafc" font-family="Inter, Arial, sans-serif" font-size="64" font-weight="700">JobPilot AI</text>
+  <text x="136" y="264" fill="#cbd5e1" font-family="Inter, Arial, sans-serif" font-size="30">Evidence-grounded job application assistant</text>
+  <g font-family="Inter, Arial, sans-serif" font-size="24">
+    <rect x="136" y="326" width="286" height="62" rx="16" fill="#102a3a" stroke="#0ea5e9"/>
+    <text x="166" y="365" fill="#7dd3fc">Truthful drafting</text>
+    <rect x="446" y="326" width="324" height="62" rx="16" fill="#21183d" stroke="#8b5cf6"/>
+    <text x="476" y="365" fill="#c4b5fd">Evidence allow-list</text>
+    <rect x="794" y="326" width="326" height="62" rx="16" fill="#132e2a" stroke="#10b981"/>
+    <text x="824" y="365" fill="#6ee7b7">Approval-gated actions</text>
+  </g>
+  <text x="136" y="460" fill="#94a3b8" font-family="Inter, Arial, sans-serif" font-size="23">Next.js · TypeScript · Vitest · Docker · OSV Scanner</text>
+  <text x="136" y="505" fill="#64748b" font-family="Inter, Arial, sans-serif" font-size="19">No auto-apply · No fabricated claims · Human approval required</text>
+</svg>

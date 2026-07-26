@@ -1,11 +1,7 @@
 /**
- * In-memory store standing in for the `jobs` and `approval_queue` tables
- * from supabase/schema.sql (not yet applied — see PROJECT_STATUS.md).
- * Swapping this for real Supabase calls later is a drop-in replacement:
- * every function here has the same shape a Supabase-backed version would.
- *
- * NOTE: module-level state resets on server restart. Fine for a demo;
- * not a substitute for the real database once it's wired up.
+ * In-memory demo store for the jobs and approval queue tables described in
+ * supabase/schema.sql. Module state resets on server restart and is not a
+ * production persistence layer.
  */
 
 export type JobStatus = "saved" | "applied" | "interviewing" | "offer" | "rejected" | "closed";
@@ -15,21 +11,27 @@ export type Job = {
   jobTitle: string;
   company: string;
   status: JobStatus;
-  followUpDate: string; // ISO date
-  lastStatusChange: string; // ISO date
+  followUpDate: string;
+  lastStatusChange: string;
   jobDescription: string;
 };
 
 export type ActionType = "draft_follow_up" | "mark_stale";
+export type ApprovalDecision = "approved" | "rejected";
 
 export type ApprovalQueueItem = {
   id: string;
   jobId: string;
   actionType: ActionType;
   proposedContent: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | ApprovalDecision;
   createdAt: string;
 };
+
+export type ApprovalResolution =
+  | { kind: "resolved"; item: ApprovalQueueItem }
+  | { kind: "already_resolved"; item: ApprovalQueueItem }
+  | { kind: "not_found" };
 
 let jobs: Job[] = [
   {
@@ -65,15 +67,15 @@ let approvalQueue: ApprovalQueueItem[] = [];
 let idCounter = 1;
 
 function daysAgo(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  const date = new Date();
+  date.setDate(date.getDate() - n);
+  return date.toISOString().slice(0, 10);
 }
 
 function daysFromNow(n: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  const date = new Date();
+  date.setDate(date.getDate() + n);
+  return date.toISOString().slice(0, 10);
 }
 
 export function listJobs(): Job[] {
@@ -81,11 +83,11 @@ export function listJobs(): Job[] {
 }
 
 export function getJob(id: string): Job | undefined {
-  return jobs.find((j) => j.id === id);
+  return jobs.find((job) => job.id === id);
 }
 
 export function updateJobStatus(id: string, status: JobStatus): Job | undefined {
-  const job = jobs.find((j) => j.id === id);
+  const job = jobs.find((candidate) => candidate.id === id);
   if (job) {
     job.status = status;
     job.lastStatusChange = new Date().toISOString().slice(0, 10);
@@ -97,7 +99,16 @@ export function listApprovalQueue(): ApprovalQueueItem[] {
   return approvalQueue;
 }
 
-export function addApprovalQueueItem(jobId: string, actionType: ActionType, proposedContent: string): ApprovalQueueItem {
+export function addApprovalQueueItem(
+  jobId: string,
+  actionType: ActionType,
+  proposedContent: string,
+): ApprovalQueueItem {
+  const existing = approvalQueue.find(
+    (item) => item.jobId === jobId && item.actionType === actionType && item.status === "pending",
+  );
+  if (existing) return existing;
+
   const item: ApprovalQueueItem = {
     id: `aq_${idCounter++}`,
     jobId,
@@ -111,27 +122,24 @@ export function addApprovalQueueItem(jobId: string, actionType: ActionType, prop
 }
 
 /**
- * The only place any job state actually changes as a result of a
- * suggested action — and it only runs when a human calls this with
- * "approved". There is no code path anywhere in this module that acts
- * on a "pending" item automatically.
+ * The only approval-driven state-change boundary. Pending items never act,
+ * rejected items never act, and already-resolved items cannot be replayed.
  */
-export function resolveApprovalQueueItem(id: string, decision: "approved" | "rejected"): ApprovalQueueItem | undefined {
-  const item = approvalQueue.find((i) => i.id === id);
-  if (!item || item.status !== "pending") return item;
+export function resolveApprovalQueueItem(
+  id: string,
+  decision: ApprovalDecision,
+): ApprovalResolution {
+  const item = approvalQueue.find((candidate) => candidate.id === id);
+  if (!item) return { kind: "not_found" };
+  if (item.status !== "pending") return { kind: "already_resolved", item };
 
   item.status = decision;
   if (decision === "approved" && item.actionType === "mark_stale") {
     updateJobStatus(item.jobId, "closed");
   }
-  // "draft_follow_up" approval doesn't change job state itself — it's a
-  // draft message ready for the user to actually send themselves,
-  // consistent with "never auto-message recruiters".
-  return item;
+  return { kind: "resolved", item };
 }
 
-// Test-only reset helper — not exported from the public API surface used
-// by routes, only imported directly by tests.
 export function __resetForTests(freshJobs: Job[]) {
   jobs = freshJobs;
   approvalQueue = [];
