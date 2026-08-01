@@ -1,9 +1,6 @@
 /**
- * Skill taxonomy shared between CV evidence extraction and job requirement
- * extraction. Same zero-dependency approach as the Job Market Skill
- * Analyzer (Project 2) — works with no API key, and both extraction
- * paths can be layered with an optional LLM pass once a key is set (see
- * lib/ai/extract.ts).
+ * Shared taxonomy for CV evidence and job-requirement extraction.
+ * Keep variants specific enough to avoid accidental substring matches.
  */
 
 export const SKILL_TAXONOMY: Record<string, string[]> = {
@@ -32,12 +29,33 @@ export const SKILL_TAXONOMY: Record<string, string[]> = {
   "Data Engineering": ["etl", "data pipeline", "airflow"],
   "Model Evaluation": ["model evaluation", "cross-validation", "precision", "recall"],
   Agile: ["agile", "scrum"],
-  Communication: ["communication", "stakeholder", "presented", "collaborated"],
+
+  Communication: ["communication", "communicated", "presented", "stakeholder"],
+  Teamwork: ["team player", "teamwork", "worked with a team", "collaborated"],
+  Reliability: ["reliable", "dependable"],
+  Punctuality: ["punctual", "timekeeping", "on time"],
+  "Fast Learning": ["fast learner", "quick learner", "learn quickly", "learned quickly"],
+  "Attention to Detail": ["attention to detail", "detail-focused", "detail oriented", "detail-oriented"],
+  "Flexible Hours": ["flexible hours", "flexible approach to working hours", "unsociable hours", "night shifts", "weekend shifts"],
+  "Manual Handling": ["manual handling", "heavy lifting", "physically demanding"],
+  "Loading and Unloading": ["loading and unloading", "load and unload", "unloading trucks", "loading trucks"],
+  "Event Setup": ["event setup", "event set-up", "event crew", "setting up events", "dismantling events"],
+  Rigging: ["rigging", "de-rigging", "derigging"],
+  "AV Equipment": ["av equipment", "audio visual equipment", "sound equipment"],
+  "Lighting and Power Installation": ["lighting installation", "power installation", "lighting, power and av installation"],
+  "Stage and Set Construction": ["building and dismantling set", "building stages", "dismantling stages", "scenery and stages", "stage construction"],
+  "Working at Height": ["working at height", "work at height"],
+  Forklift: ["forklift", "counterbalance", "telescopic handler", "rough terrain"],
+  "Scissor Lift/Cherry Picker": ["scissor lift", "cherry picker"],
+  PASMA: ["pasma"],
+  CSCS: ["cscs"],
+  "SPA Card": ["spa card"],
 };
 
 export function findSkillMentions(text: string): { skill: string; evidence: string }[] {
-  const normalized = ` ${text.toLowerCase().replace(/[^a-z0-9+./#& ]/g, " ")} `;
+  const normalized = ` ${text.toLowerCase().replace(/[^a-z0-9+./#& -]/g, " ")} `;
   const found: { skill: string; evidence: string }[] = [];
+
   for (const [skill, variants] of Object.entries(SKILL_TAXONOMY)) {
     for (const variant of variants) {
       if (normalized.includes(variant)) {
@@ -46,5 +64,6 @@ export function findSkillMentions(text: string): { skill: string; evidence: stri
       }
     }
   }
+
   return found;
 }
