@@ -2,39 +2,72 @@ import type { EvidenceItem } from "../evidence/extract-cv";
 import type { JobRequirements } from "../evidence/extract-jd";
 
 export type MatchResult = {
-  matchScore: number; // 0-100
+  matchScore: number;
   matchedSkills: { skill: string; confidence: EvidenceItem["confidence"] }[];
   missingSkills: string[];
   weakEvidence: { skill: string; reason: string }[];
 };
 
-export function matchEvidenceToJob(evidence: EvidenceItem[], job: JobRequirements): MatchResult {
-  const evidenceBySkill = new Map(evidence.map((e) => [e.skill, e]));
-  const allRequired = [...job.requiredSkills, ...job.preferredSkills];
+const CONFIDENCE_WEIGHT: Record<EvidenceItem["confidence"], number> = {
+  high: 1,
+  medium: 0.7,
+  low: 0.3,
+};
+
+export function matchEvidenceToJob(
+  evidence: EvidenceItem[],
+  job: JobRequirements,
+): MatchResult {
+  const evidenceBySkill = new Map(evidence.map((item) => [item.skill, item]));
+  const allRequirements = [...job.requiredSkills, ...job.preferredSkills];
 
   const matchedSkills: MatchResult["matchedSkills"] = [];
   const missingSkills: string[] = [];
   const weakEvidence: MatchResult["weakEvidence"] = [];
 
-  for (const skill of allRequired) {
-    const ev = evidenceBySkill.get(skill);
-    if (!ev) {
+  for (const skill of allRequirements) {
+    const item = evidenceBySkill.get(skill);
+    if (!item) {
       missingSkills.push(skill);
-    } else if (ev.confidence === "low") {
-      weakEvidence.push({ skill, reason: `Only a passing mention found ("${truncate(ev.evidenceText)}") — consider adding a concrete example.` });
-      matchedSkills.push({ skill, confidence: ev.confidence });
-    } else {
-      matchedSkills.push({ skill, confidence: ev.confidence });
+      continue;
+    }
+
+    matchedSkills.push({ skill, confidence: item.confidence });
+    if (item.confidence === "low") {
+      weakEvidence.push({
+        skill,
+        reason: `Only a passing mention found ("${truncate(item.evidenceText)}") — consider adding a concrete example.`,
+      });
     }
   }
 
-  const requiredCount = job.requiredSkills.length || 1;
-  const requiredMatched = job.requiredSkills.filter((s) => evidenceBySkill.has(s)).length;
-  const matchScore = Math.round((requiredMatched / requiredCount) * 100);
+  const requiredScore = scoreRequirements(job.requiredSkills, evidenceBySkill);
+  const preferredScore = scoreRequirements(job.preferredSkills, evidenceBySkill);
+  const hasPreferred = job.preferredSkills.length > 0;
+
+  const weightedScore = hasPreferred
+    ? requiredScore * 0.85 + preferredScore * 0.15
+    : requiredScore;
+
+  const matchScore = Math.max(0, Math.min(100, Math.round(weightedScore * 100)));
 
   return { matchScore, matchedSkills, missingSkills, weakEvidence };
 }
 
+function scoreRequirements(
+  requirements: string[],
+  evidenceBySkill: Map<string, EvidenceItem>,
+): number {
+  if (requirements.length === 0) return 0;
+
+  const earned = requirements.reduce((total, skill) => {
+    const evidence = evidenceBySkill.get(skill);
+    return total + (evidence ? CONFIDENCE_WEIGHT[evidence.confidence] : 0);
+  }, 0);
+
+  return earned / requirements.length;
+}
+
 function truncate(text: string, max = 80): string {
-  return text.length > max ? text.slice(0, max) + "…" : text;
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
