@@ -64,11 +64,18 @@ export function matchEvidenceToJob(
     const item = evidenceBySkill.get(skill);
     return item?.confidence === "high" || item?.confidence === "medium";
   });
+  const concreteRequiredCount = supportedRequired.length;
   const strongRequiredCoverage = job.requiredSkills.length === 0
     ? 0
-    : supportedRequired.length / job.requiredSkills.length;
+    : concreteRequiredCount / job.requiredSkills.length;
 
-  const matchLevel = classifyMatch(matchScore, requiredCoverage, strongRequiredCoverage);
+  const matchLevel = classifyMatch({
+    score: matchScore,
+    requiredCoverage,
+    strongRequiredCoverage,
+    concreteRequiredCount,
+    requiredCount: job.requiredSkills.length,
+  });
   const matchLabel = labelFor(matchLevel);
   const reasons = buildReasons(job, matchedSkills, missingSkills, weakEvidence, requiredCoverage);
   const matchSummary = summaryFor(matchLevel, job.jobTitle, requiredCoverage);
@@ -86,13 +93,39 @@ export function matchEvidenceToJob(
   };
 }
 
-function classifyMatch(
-  score: number,
-  requiredCoverage: number,
-  strongRequiredCoverage: number,
-): MatchLevel {
-  if (score >= 75 && requiredCoverage >= 75 && strongRequiredCoverage >= 0.6) return "strong";
-  if (score >= 50 && requiredCoverage >= 50 && strongRequiredCoverage >= 0.35) return "partial";
+function classifyMatch(input: {
+  score: number;
+  requiredCoverage: number;
+  strongRequiredCoverage: number;
+  concreteRequiredCount: number;
+  requiredCount: number;
+}): MatchLevel {
+  const {
+    score,
+    requiredCoverage,
+    strongRequiredCoverage,
+    concreteRequiredCount,
+    requiredCount,
+  } = input;
+
+  if (score >= 75 && requiredCoverage >= 75 && strongRequiredCoverage >= 0.6) {
+    return "strong";
+  }
+
+  if (score >= 40 && requiredCoverage >= 50 && strongRequiredCoverage >= 0.5) {
+    return "partial";
+  }
+
+  // One isolated transferable skill is not enough to establish genuine fit
+  // when most core requirements are absent.
+  if (requiredCount >= 4 && concreteRequiredCount <= 1 && requiredCoverage <= 25) {
+    return "occupational_mismatch";
+  }
+
+  // Two or more concrete, role-relevant requirements justify a weak verdict
+  // even where a long job description makes percentage coverage look small.
+  if (concreteRequiredCount >= 2) return "weak";
+
   if (score >= 25 && requiredCoverage >= 25) return "weak";
   return "occupational_mismatch";
 }
