@@ -23,7 +23,17 @@ Familiarity with AWS is preferred but not required.
 Experience with Docker is a plus.`;
 
 type AnalysisResponse = {
-  match: { matchScore: number; matchedSkills: { skill: string; confidence: string }[]; missingSkills: string[]; weakEvidence: { skill: string; reason: string }[] };
+  match: {
+    matchScore: number;
+    matchLevel: "strong" | "partial" | "weak" | "occupational_mismatch";
+    matchLabel: string;
+    matchSummary: string;
+    requiredCoverage: number;
+    reasons: string[];
+    matchedSkills: { skill: string; confidence: string }[];
+    missingSkills: string[];
+    weakEvidence: { skill: string; reason: string }[];
+  };
   coverLetter: { letter: string; blockedClaims: string[]; mode: string };
   interviewQuestions: { technical: string[]; behavioural: string[]; toAskEmployer: string[] };
   linkedin: { headline: string; aboutSectionPoints: string[]; skillsToAdd: string[] };
@@ -92,7 +102,16 @@ export default function AnalysePage() {
         <div className="mt-10 space-y-10">
           <section>
             <h2 className="text-xl font-bold">Match score: {result.match.matchScore}%</h2>
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <div className="mt-3 rounded border border-gray-200 bg-gray-50 p-4">
+              <p className="font-semibold">Verdict: {result.match.matchLabel}</p>
+              <p className="mt-1 text-sm text-gray-700">{result.match.matchSummary}</p>
+              <p className="mt-2 text-sm"><strong>Required coverage:</strong> {result.match.requiredCoverage}%</p>
+              <ul className="mt-2 text-sm text-gray-700">
+                {result.match.reasons.map((reason) => <li key={reason}>• {reason}</li>)}
+              </ul>
+              <p className="mt-3 text-xs text-gray-500">This is an evidence-alignment assessment, not proof that a candidate can perform the job. Employers must still verify experience, licences and eligibility.</p>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
               <div>
                 <p className="text-xs font-semibold uppercase text-green-700">Matched</p>
                 <ul className="mt-1 text-sm">{result.match.matchedSkills.map((s) => <li key={s.skill}>{s.skill} ({s.confidence})</li>)}</ul>
