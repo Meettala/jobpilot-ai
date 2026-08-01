@@ -34,13 +34,24 @@ The following increase earning potential:
 Forklift licences, scissor lift or cherry picker, PASMA, Working at Height, CSCS card and SPA Card.
 `;
 
+const PARTIAL_EVENT_CV = `
+Warehouse Operative
+Experience
+Loaded and unloaded delivery vehicles safely as part of a warehouse team.
+Worked flexible night shifts, followed manual-handling procedures and communicated with supervisors.
+`;
+
 describe("cross-role match calibration", () => {
-  it("does not report a data analyst CV as a perfect event crew match", async () => {
+  it("reports a data analyst CV as an occupational mismatch for event crew work", async () => {
     const result = await runAnalysis(DATA_ANALYST_CV, EVENT_CREW_JOB);
 
     expect(result.job.jobTitle).toBe("Event Crew Member");
-    expect(result.match.matchScore).toBeGreaterThan(0);
-    expect(result.match.matchScore).toBeLessThan(40);
+    expect(result.match.matchScore).toBeGreaterThanOrEqual(0);
+    expect(result.match.matchScore).toBeLessThan(25);
+    expect(result.match.matchLevel).toBe("occupational_mismatch");
+    expect(result.match.matchLabel).toBe("Likely occupational mismatch");
+    expect(result.match.matchSummary).toMatch(/not provide enough relevant evidence/i);
+    expect(result.match.reasons.join(" ")).toMatch(/core required evidence missing/i);
     expect(result.match.missingSkills).toContain("Loading and Unloading");
     expect(result.match.missingSkills).toContain("Rigging");
     expect(result.match.missingSkills).toContain("AV Equipment");
@@ -55,5 +66,16 @@ describe("cross-role match calibration", () => {
 
     expect(result.linkedin.headline).toContain("Open to Event Crew Member Opportunities");
     expect(result.linkedin.headline).not.toContain("Full job description");
+  });
+
+  it("distinguishes limited transferable evidence from a strong match", async () => {
+    const result = await runAnalysis(PARTIAL_EVENT_CV, EVENT_CREW_JOB);
+
+    expect(["weak", "partial"]).toContain(result.match.matchLevel);
+    expect(result.match.matchLevel).not.toBe("strong");
+    expect(result.match.requiredCoverage).toBeGreaterThan(0);
+    expect(result.match.missingSkills).toContain("Rigging");
+    expect(result.match.missingSkills).toContain("AV Equipment");
+    expect(result.match.matchSummary).toMatch(/limited|some important requirements|gaps/i);
   });
 });
