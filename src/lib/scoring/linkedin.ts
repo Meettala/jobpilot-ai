@@ -11,30 +11,43 @@ export type LinkedInSuggestions = {
 export function generateLinkedInSuggestions(
   evidence: EvidenceItem[],
   match: MatchResult,
-  jobTitle: string
+  jobTitle: string,
 ): LinkedInSuggestions {
-  const topSkills = match.matchedSkills
-    .filter((m) => m.confidence === "high")
+  const supportedSkills = match.matchedSkills
+    .filter((item) => item.confidence !== "low")
     .slice(0, 3)
-    .map((m) => m.skill);
+    .map((item) => item.skill);
 
-  const headline = topSkills.length > 0
-    ? `${jobTitle || "AI/ML Engineer"} | ${topSkills.join(" · ")}`
-    : jobTitle || "AI/ML Engineer";
+  const safeTitle = normalizeTitle(jobTitle);
+  const titlePrefix = match.matchScore < 40
+    ? `Open to ${safeTitle} Opportunities`
+    : safeTitle;
+
+  const headline = supportedSkills.length > 0
+    ? `${titlePrefix} | ${supportedSkills.join(" · ")}`
+    : titlePrefix;
 
   const aboutSectionPoints = evidence
-    .filter((e) => e.confidence === "high")
+    .filter((item) => item.confidence === "high")
     .slice(0, 5)
-    .map((e) => e.evidenceText);
+    .map((item) => item.evidenceText);
 
   return {
     headline,
     aboutSectionPoints,
-    // Only ever suggests skills the evidence bank actually supports —
-    // never suggests adding a missing/unproven skill to the profile.
-    skillsToAdd: match.matchedSkills.map((m) => m.skill),
+    skillsToAdd: match.matchedSkills
+      .filter((item) => item.confidence !== "low")
+      .map((item) => item.skill),
     featuredSectionOrder: evidence
-      .filter((e) => e.sourceTitle.toLowerCase().includes("project"))
-      .map((e) => e.skill),
+      .filter((item) => item.sourceTitle.toLowerCase().includes("project"))
+      .map((item) => item.skill),
   };
+}
+
+function normalizeTitle(jobTitle: string): string {
+  const trimmed = jobTitle.trim();
+  if (!trimmed || /^(full )?job description$/i.test(trimmed) || /^untitled role$/i.test(trimmed)) {
+    return "Relevant Roles";
+  }
+  return trimmed;
 }
