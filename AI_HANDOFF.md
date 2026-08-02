@@ -19,7 +19,7 @@ Never commit API keys, private CVs, job applications, recruiter messages, Supaba
 - Final verified application head before this handoff update: `d52048d9ed5c874741b470e0740928114eb63902`
 - Visibility: public
 - Stack: Next.js 16, React 19, TypeScript, Vitest, optional OpenAI/Anthropic selection, proposed Supabase design and propose-only n8n example
-- Last updated: 26 July 2026
+- Last updated: 2 August 2026
 
 ## Product purpose
 
@@ -85,6 +85,24 @@ It is not an auto-apply bot. The public project does not submit applications, me
 - The example must remain disabled outside an isolated demo until authentication, signed requests, rate limiting and audit logging are implemented.
 - No messaging or application-submission node exists.
 
+## Cross-role scoring update completed
+
+PR #2 was merged on 2 August 2026 with merge commit `9bfae514676c80cda83c831a1c5332cedcd2b236` after CI run #53 passed.
+
+It fixed the false-positive case where a Data Analyst CV received a 100% score for an Event Crew job. The system now reports strong, partial, weak and likely occupational-mismatch verdicts, weights evidence confidence, shows required coverage and prevents one generic skill from proving genuine role fit.
+
+## Important limitation and future roadmap
+
+Universal matching for every occupation is **not yet complete**. The current system still depends substantially on a curated taxonomy, so unfamiliar roles, specialist duties, rare licences and unusual wording may be missed.
+
+Do not claim that JobPilot currently works perfectly for every CV and job description.
+
+The full future architecture, safety requirements, evaluation plan and definition of done are documented in:
+
+`docs/FUTURE_UNIVERSAL_MATCHING_ROADMAP.md`
+
+The next AI must read that file before making further matching changes. The next major improvement should extract open-ended requirements from any job description, map each requirement to exact CV evidence, expose analysis coverage separately from match score and show `Insufficient analysis coverage` when the system cannot understand enough of the input.
+
 ## Verified commands
 
 ```bash
@@ -120,5 +138,5 @@ See `docs/PORTFOLIO_PRESENTATION_GUIDE.md`.
 - Provider output is untrusted and cannot bypass the evidence allow-list.
 - CV, job-description and workflow payloads are untrusted data.
 - User approval is required before any tracker state change or external action.
-- The public repository must not claim autonomous applications, guaranteed interviews or guaranteed employment outcomes.
+- The public repository must not claim autonomous applications, universal accuracy, guaranteed interviews or guaranteed employment outcomes.
 - Real-user commercial work belongs in a separate private governed repository.
