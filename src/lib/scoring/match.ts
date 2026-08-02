@@ -1,40 +1,198 @@
 import type { EvidenceItem } from "../evidence/extract-cv";
 import type { JobRequirements } from "../evidence/extract-jd";
 
+export type MatchLevel = "strong" | "partial" | "weak" | "occupational_mismatch";
+
 export type MatchResult = {
-  matchScore: number; // 0-100
+  matchScore: number;
+  matchLevel: MatchLevel;
+  matchLabel: string;
+  matchSummary: string;
+  requiredCoverage: number;
   matchedSkills: { skill: string; confidence: EvidenceItem["confidence"] }[];
   missingSkills: string[];
   weakEvidence: { skill: string; reason: string }[];
+  reasons: string[];
 };
 
-export function matchEvidenceToJob(evidence: EvidenceItem[], job: JobRequirements): MatchResult {
-  const evidenceBySkill = new Map(evidence.map((e) => [e.skill, e]));
-  const allRequired = [...job.requiredSkills, ...job.preferredSkills];
+const CONFIDENCE_WEIGHT: Record<EvidenceItem["confidence"], number> = {
+  high: 1,
+  medium: 0.7,
+  low: 0.3,
+};
+
+export function matchEvidenceToJob(
+  evidence: EvidenceItem[],
+  job: JobRequirements,
+): MatchResult {
+  const evidenceBySkill = new Map(evidence.map((item) => [item.skill, item]));
+  const allRequirements = [...job.requiredSkills, ...job.preferredSkills];
 
   const matchedSkills: MatchResult["matchedSkills"] = [];
   const missingSkills: string[] = [];
   const weakEvidence: MatchResult["weakEvidence"] = [];
 
-  for (const skill of allRequired) {
-    const ev = evidenceBySkill.get(skill);
-    if (!ev) {
+  for (const skill of allRequirements) {
+    const item = evidenceBySkill.get(skill);
+    if (!item) {
       missingSkills.push(skill);
-    } else if (ev.confidence === "low") {
-      weakEvidence.push({ skill, reason: `Only a passing mention found ("${truncate(ev.evidenceText)}") — consider adding a concrete example.` });
-      matchedSkills.push({ skill, confidence: ev.confidence });
-    } else {
-      matchedSkills.push({ skill, confidence: ev.confidence });
+      continue;
+    }
+
+    matchedSkills.push({ skill, confidence: item.confidence });
+    if (item.confidence === "low") {
+      weakEvidence.push({
+        skill,
+        reason: `Only a passing mention found ("${truncate(item.evidenceText)}") — no concrete example confirms practical experience.`,
+      });
     }
   }
 
-  const requiredCount = job.requiredSkills.length || 1;
-  const requiredMatched = job.requiredSkills.filter((s) => evidenceBySkill.has(s)).length;
-  const matchScore = Math.round((requiredMatched / requiredCount) * 100);
+  const requiredScore = scoreRequirements(job.requiredSkills, evidenceBySkill);
+  const preferredScore = scoreRequirements(job.preferredSkills, evidenceBySkill);
+  const hasPreferred = job.preferredSkills.length > 0;
+  const weightedScore = hasPreferred
+    ? requiredScore * 0.85 + preferredScore * 0.15
+    : requiredScore;
 
-  return { matchScore, matchedSkills, missingSkills, weakEvidence };
+  const matchScore = Math.max(0, Math.min(100, Math.round(weightedScore * 100)));
+  const requiredMatched = job.requiredSkills.filter((skill) => evidenceBySkill.has(skill)).length;
+  const requiredCoverage = job.requiredSkills.length === 0
+    ? 0
+    : Math.round((requiredMatched / job.requiredSkills.length) * 100);
+  const supportedRequired = job.requiredSkills.filter((skill) => {
+    const item = evidenceBySkill.get(skill);
+    return item?.confidence === "high" || item?.confidence === "medium";
+  });
+  const concreteRequiredCount = supportedRequired.length;
+  const strongRequiredCoverage = job.requiredSkills.length === 0
+    ? 0
+    : concreteRequiredCount / job.requiredSkills.length;
+
+  const matchLevel = classifyMatch({
+    score: matchScore,
+    requiredCoverage,
+    strongRequiredCoverage,
+    concreteRequiredCount,
+    requiredCount: job.requiredSkills.length,
+  });
+  const matchLabel = labelFor(matchLevel);
+  const reasons = buildReasons(job, matchedSkills, missingSkills, weakEvidence, requiredCoverage);
+  const matchSummary = summaryFor(matchLevel, job.jobTitle, requiredCoverage);
+
+  return {
+    matchScore,
+    matchLevel,
+    matchLabel,
+    matchSummary,
+    requiredCoverage,
+    matchedSkills,
+    missingSkills,
+    weakEvidence,
+    reasons,
+  };
+}
+
+function classifyMatch(input: {
+  score: number;
+  requiredCoverage: number;
+  strongRequiredCoverage: number;
+  concreteRequiredCount: number;
+  requiredCount: number;
+}): MatchLevel {
+  const {
+    score,
+    requiredCoverage,
+    strongRequiredCoverage,
+    concreteRequiredCount,
+    requiredCount,
+  } = input;
+
+  if (score >= 75 && requiredCoverage >= 75 && strongRequiredCoverage >= 0.6) {
+    return "strong";
+  }
+
+  if (score >= 40 && requiredCoverage >= 50 && strongRequiredCoverage >= 0.5) {
+    return "partial";
+  }
+
+  // One isolated transferable skill is not enough to establish genuine fit
+  // when most core requirements are absent.
+  if (requiredCount >= 4 && concreteRequiredCount <= 1 && requiredCoverage <= 25) {
+    return "occupational_mismatch";
+  }
+
+  // Two or more concrete, role-relevant requirements justify a weak verdict
+  // even where a long job description makes percentage coverage look small.
+  if (concreteRequiredCount >= 2) return "weak";
+
+  if (score >= 25 && requiredCoverage >= 25) return "weak";
+  return "occupational_mismatch";
+}
+
+function labelFor(level: MatchLevel): string {
+  switch (level) {
+    case "strong":
+      return "Strong evidence-based match";
+    case "partial":
+      return "Partial match";
+    case "weak":
+      return "Weak match";
+    case "occupational_mismatch":
+      return "Likely occupational mismatch";
+  }
+}
+
+function summaryFor(level: MatchLevel, jobTitle: string, requiredCoverage: number): string {
+  const role = jobTitle || "this role";
+  switch (level) {
+    case "strong":
+      return `The CV provides substantial, concrete evidence for most core requirements of ${role}.`;
+    case "partial":
+      return `The CV supports some important requirements for ${role}, but material gaps remain.`;
+    case "weak":
+      return `The CV has limited transferable evidence for ${role}; only ${requiredCoverage}% of required areas are mentioned.`;
+    case "occupational_mismatch":
+      return `The CV does not provide enough relevant evidence for the core duties of ${role}. Generic transferable skills do not establish genuine role fit.`;
+  }
+}
+
+function buildReasons(
+  job: JobRequirements,
+  matched: MatchResult["matchedSkills"],
+  missing: string[],
+  weak: MatchResult["weakEvidence"],
+  requiredCoverage: number,
+): string[] {
+  const reasons: string[] = [];
+  reasons.push(`${requiredCoverage}% of required areas have any CV evidence.`);
+
+  const concrete = matched.filter((item) => item.confidence !== "low").map((item) => item.skill);
+  if (concrete.length > 0) reasons.push(`Concrete or contextual evidence: ${concrete.join(", ")}.`);
+  if (weak.length > 0) reasons.push(`Passing mentions only: ${weak.map((item) => item.skill).join(", ")}.`);
+
+  const missingRequired = job.requiredSkills.filter((skill) => missing.includes(skill));
+  if (missingRequired.length > 0) {
+    reasons.push(`Core required evidence missing: ${missingRequired.slice(0, 8).join(", ")}${missingRequired.length > 8 ? ", and more" : ""}.`);
+  }
+
+  return reasons;
+}
+
+function scoreRequirements(
+  requirements: string[],
+  evidenceBySkill: Map<string, EvidenceItem>,
+): number {
+  if (requirements.length === 0) return 0;
+
+  const earned = requirements.reduce((total, skill) => {
+    const evidence = evidenceBySkill.get(skill);
+    return total + (evidence ? CONFIDENCE_WEIGHT[evidence.confidence] : 0);
+  }, 0);
+
+  return earned / requirements.length;
 }
 
 function truncate(text: string, max = 80): string {
-  return text.length > max ? text.slice(0, max) + "…" : text;
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
