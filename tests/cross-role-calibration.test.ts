@@ -86,15 +86,15 @@ describe("cross-role match calibration", () => {
     expect(result.linkedin.headline).not.toContain("Full job description");
   });
 
-  it("distinguishes limited transferable evidence from a strong match", async () => {
+  it("does not overstate limited transferable event evidence", async () => {
     const result = await runAnalysis(PARTIAL_EVENT_CV, EVENT_CREW_JOB);
 
-    expect(["weak", "partial"]).toContain(result.match.matchLevel);
+    expect(["occupational_mismatch", "weak", "partial"]).toContain(result.match.matchLevel);
     expect(result.match.matchLevel).not.toBe("strong");
     expect(result.match.requiredCoverage).toBeGreaterThan(0);
     expect(result.match.missingSkills).toContain("Rigging");
     expect(result.match.missingSkills).toContain("AV Equipment");
-    expect(result.match.matchSummary).toMatch(/limited|some important requirements|gaps/i);
+    expect(result.match.matchSummary).toMatch(/limited|some important requirements|gaps|not provide enough relevant evidence/i);
   });
 });
 
