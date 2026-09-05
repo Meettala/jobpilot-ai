@@ -1,0 +1,41 @@
+name: P02B lockfile remediation evidence
+
+on:
+  push:
+    branches: [p02/provider-privacy-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Regenerate lockfile with targeted compatible updates
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm update nanoid js-yaml browserslist postcss brace-expansion --package-lock-only --ignore-scripts
+      - name: Verify clean install
+        run: npm ci
+      - name: Capture dependency ancestry
+        run: |
+          {
+            echo '### nanoid'; npm explain nanoid
+            echo '### js-yaml'; npm explain js-yaml
+            echo '### browserslist'; npm explain browserslist
+            echo '### postcss'; npm explain postcss
+            echo '### brace-expansion'; npm explain brace-expansion
+          } > p02b-dependency-explain.txt
+      - name: Upload remediation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: p02b-lockfile-evidence
+          path: |
+            package-lock.json
+            p02b-dependency-explain.txt
