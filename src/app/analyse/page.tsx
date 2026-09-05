@@ -82,6 +82,13 @@ export default function AnalysePage() {
       <h1 className="text-3xl font-bold">Analyse a job application</h1>
       <p className="mt-2 text-gray-600">Every suggestion below is grounded in your CV. Nothing is invented — unsupported claims are listed separately, not hidden.</p>
 
+      <div className="mt-6 rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="note" aria-label="Beta privacy notice">
+        <p className="font-semibold">Beta privacy notice</p>
+        <p className="mt-1">
+          Do not paste confidential information. The current app code is intended not to persist the CV or job description you paste here. Provider mode is disabled by default; if a deployment explicitly enables it, extracted CV evidence and job requirements may be sent to the configured model provider for evidence selection.
+        </p>
+      </div>
+
       <div className="mt-8 grid gap-6 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium">Your CV</label>
