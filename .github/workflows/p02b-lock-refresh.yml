@@ -1,0 +1,48 @@
+name: P02B lock refresh helper
+
+on:
+  push:
+    branches:
+      - p02/provider-privacy-hardening
+    paths:
+      - .github/workflows/p02b-lock-refresh.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: p02/provider-privacy-hardening
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Refresh only affected dependency resolutions
+        run: npm update --package-lock-only --ignore-scripts nanoid js-yaml browserslist postcss brace-expansion
+      - name: Verify clean install from refreshed lockfile
+        run: npm ci
+      - name: Explain affected dependency chains
+        run: |
+          npm explain nanoid
+          npm explain js-yaml
+          npm explain browserslist
+          npm explain postcss
+          npm explain brace-expansion
+      - name: Ensure npm changed only the lockfile
+        run: |
+          changed="$(git status --short)"
+          printf '%s\n' "$changed"
+          test -n "$changed"
+          test "$(git status --short | wc -l)" -eq 1
+          echo "$changed" | grep -Eq '^ M package-lock\.json$'
+      - name: Commit refreshed lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "P02B: refresh fixable transitive dependencies"
+          git push origin HEAD:p02/provider-privacy-hardening
