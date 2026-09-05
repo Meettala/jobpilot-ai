@@ -22,6 +22,7 @@ We are hiring a Python engineer. Kubernetes experience is required for this role
 afterEach(() => {
   delete process.env.OPENAI_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ENABLE_PROVIDER_MODE;
   vi.unstubAllGlobals();
 });
 
@@ -62,8 +63,26 @@ describe("draftCoverLetterTemplate — the core honesty guarantee", () => {
       expect(matchesSomeEvidence).toBe(true);
     }
   });
+});
 
-  it("runs in template mode with no API key configured", () => {
+describe("provider enablement", () => {
+  it("stays disabled with no key and no flag", () => {
+    expect(llmAvailable()).toBe(false);
+  });
+
+  it("does not enable provider mode from an API key alone", () => {
+    process.env.OPENAI_API_KEY = "test-key";
+    expect(llmAvailable()).toBe(false);
+  });
+
+  it("enables provider mode only with an explicit true flag and a key", () => {
+    process.env.ENABLE_PROVIDER_MODE = "true";
+    process.env.OPENAI_API_KEY = "test-key";
+    expect(llmAvailable()).toBe(true);
+  });
+
+  it("does not enable provider mode from the flag alone", () => {
+    process.env.ENABLE_PROVIDER_MODE = "true";
     expect(llmAvailable()).toBe(false);
   });
 });
@@ -84,6 +103,7 @@ describe("optional provider boundary", () => {
   });
 
   it("falls back when the provider selects no allow-listed evidence", async () => {
+    process.env.ENABLE_PROVIDER_MODE = "true";
     process.env.OPENAI_API_KEY = "test-key";
     vi.stubGlobal(
       "fetch",
@@ -105,6 +125,20 @@ describe("optional provider boundary", () => {
         )
       )
     );
+
+    const evidence = buildEvidenceBank(CV_WITH_ONLY_PYTHON);
+    const job = extractJobRequirements(JD_WANTING_PYTHON_AND_KUBERNETES);
+    const match = matchEvidenceToJob(evidence, job);
+    const result = await draftCoverLetter(evidence, job, match);
+
+    expect(result.mode).toBe("template");
+    expect(result.letter.toLowerCase()).not.toContain("kubernetes");
+  });
+
+  it("falls back when an enabled provider request fails", async () => {
+    process.env.ENABLE_PROVIDER_MODE = "true";
+    process.env.OPENAI_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("provider down")));
 
     const evidence = buildEvidenceBank(CV_WITH_ONLY_PYTHON);
     const job = extractJobRequirements(JD_WANTING_PYTHON_AND_KUBERNETES);
